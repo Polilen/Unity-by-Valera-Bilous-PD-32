@@ -10,7 +10,7 @@ public class ManaPotion : MonoBehaviour
     private void OnTriggerEnter2D(Collider2D other)
     {
         PlayerMover player = other.GetComponent<PlayerMover>();
-        if (player!=null)
+        if (player!=null && player.CurrentMana<100)
         {
             player.AddMana(_ManaPoints);
             Destroy(gameObject);

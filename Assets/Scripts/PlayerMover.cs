@@ -1,5 +1,11 @@
-using System;
+using System.Collections;
+using TMPro;
+using UnityEditor.Experimental.GraphView;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
+using UnityEngine.UI;
+
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerMover : MonoBehaviour
 {
@@ -19,6 +25,9 @@ public class PlayerMover : MonoBehaviour
     [SerializeField] private Collider2D _headCollider;
     [SerializeField] private float _headCheckerRadius;
     [SerializeField] private Transform _headChecker;
+    [SerializeField] private int _maxHp;
+    [SerializeField] private int _maxMana;
+    [SerializeField] private int _maxArmor;
 
     [Header(("Animation"))]
     [SerializeField] private Animator _animator;
@@ -28,17 +37,68 @@ public class PlayerMover : MonoBehaviour
     [SerializeField] private string _crouchAnimatorKey;
     [SerializeField] private string _attackAnimatorKey;
     [SerializeField] private string _castAnimatorKey;
+    [FormerlySerializedAs("_coinAmount")]
+    [Header(("UI"))] 
+    [SerializeField] private TMP_Text _coinAmountText; 
+    [SerializeField] private Slider _hpBar;
+    [SerializeField] private Slider _manaBar;
+    [SerializeField] private Slider _armorBar;
     private float _horizontalDirection;
     private float _verticalDirection;
-
     private bool _jump;
-
     private bool _crawl;
+    private int _coinsAmount;
 
+    public int CoinsAmount
+    {
+        get => _coinsAmount;
+        set
+        {
+            _coinsAmount = value;
+            _coinAmountText.text = value.ToString();
+        }
+    }
+    private int _currentHp;
+    private int CurrentHp
+    {
+        get => _currentHp;
+        set
+        {
+            _currentHp = value;
+            _hpBar.value = _currentHp;
+        }
+    }
+    private int _currentMana;
+    public int CurrentMana
+    {
+        get => _currentMana;
+        set
+        {
+            _currentMana = value;
+            _manaBar.value = _currentMana;
+        }
+    }
+    private int _currentArmor;
+    public int CurrentArmor
+    {
+        get => _currentArmor;
+        set
+        {
+            _currentArmor = value;
+            _armorBar.value = _currentArmor;
+        }
+    }
     public bool Canclimb { private get; set; }
     // Start is called before the first frame update
     private void Start()
     {
+        CoinsAmount = 0;
+        _armorBar.maxValue = _maxArmor;
+        CurrentArmor = _maxArmor;
+        _manaBar.maxValue = _maxMana;
+        CurrentMana = _maxMana;
+        _hpBar.maxValue = _maxHp;
+        CurrentHp = _maxHp;
         _rigidbody = GetComponent<Rigidbody2D>();
     }
 
@@ -62,7 +122,6 @@ public class PlayerMover : MonoBehaviour
         }
 
         _crawl = Input.GetKey(KeyCode.C);
-
     }
 
     private void FixedUpdate()
@@ -91,10 +150,21 @@ public class PlayerMover : MonoBehaviour
             _rigidbody.AddForce(Vector2.up * _jumpForce);
             _jump = false;
         }
+        
         _animator.SetBool(_jumpAnimatorKey,!canJump);
         _animator.SetBool(_crouchAnimatorKey,!_headCollider.enabled);
         _animator.SetBool(_attackAnimatorKey,Input.GetKey(KeyCode.Mouse0));
         _animator.SetBool(_castAnimatorKey,Input.GetKey(KeyCode.U));
+        if (Input.GetKey(KeyCode.U))
+        {
+            CurrentMana -= 1;
+            if (CurrentMana < 0)
+            {
+                CurrentMana = 0;
+            }
+        }
+        
+        
     }
 
     private void OnDrawGizmos()
@@ -106,14 +176,71 @@ public class PlayerMover : MonoBehaviour
 
     public void AddHp(int hpPoints)
     {
-        Debug.Log(message:"Hp raised " + hpPoints);
+        int missingHp = _maxHp - CurrentHp;
+        int pointToAdd = missingHp > hpPoints ? hpPoints : missingHp;
+        StartCoroutine(RestoreHp(pointToAdd));
+    }
+
+    private IEnumerator RestoreHp(int pointToAdd)
+    {
+        int hp = CurrentHp;
+        while (pointToAdd !=0)
+        {
+            pointToAdd--;
+            CurrentHp++;
+            yield return new WaitForSeconds(0.2f);
+        }
     }
     public void AddMana(int ManaPoints)
     {
-        Debug.Log(message:"Mana raised " + ManaPoints);
+        int missingMana = _maxMana - CurrentMana;
+        int manaToAdd = missingMana > ManaPoints ? ManaPoints : missingMana;
+        StartCoroutine(RestoreMana(manaToAdd));
+    }
+    private IEnumerator RestoreMana(int manaToAdd)
+    {
+        int mana = CurrentMana;
+        while (manaToAdd !=0)
+        {
+            manaToAdd--;
+            CurrentMana++;
+            yield return new WaitForSeconds(0.2f);
+        }
     }
     public void AddArmor(int ArmorPoints)
     {
-        Debug.Log(message:"Armor raised " + ArmorPoints);
+        int missingArmor = _maxArmor - CurrentArmor;
+        int armorToAdd = missingArmor > ArmorPoints ? ArmorPoints : missingArmor;
+        StartCoroutine(RestoreArmor(armorToAdd));
     }
+    private IEnumerator RestoreArmor(int armorToAdd)
+    {
+        int armor = CurrentArmor;
+        while (armorToAdd !=0)
+        {
+            armorToAdd--;
+            CurrentArmor++;
+            yield return new WaitForSeconds(0.2f);
+        }
+    }
+    public void TakeDamage(int damage)
+    {
+        CurrentArmor -= damage;
+        if (CurrentArmor <= 0)
+        {
+            CurrentHp -= damage;
+            if (_currentHp <= 0)
+            {
+                Debug.Log(message: " Died ");
+                gameObject.SetActive(false);
+                Invoke(nameof(ReloadScene), 1f);
+            }
+        }
+    }
+
+    private void ReloadScene()
+    {
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
+
 }
