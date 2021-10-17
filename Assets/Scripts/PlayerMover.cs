@@ -37,6 +37,7 @@ public class PlayerMover : MonoBehaviour
     [SerializeField] private string _crouchAnimatorKey;
     [SerializeField] private string _attackAnimatorKey;
     [SerializeField] private string _castAnimatorKey;
+    [SerializeField] private string _hurtAnimationKey;
     [FormerlySerializedAs("_coinAmount")]
     [Header(("UI"))] 
     [SerializeField] private TMP_Text _coinAmountText; 
@@ -45,6 +46,7 @@ public class PlayerMover : MonoBehaviour
     [SerializeField] private Slider _armorBar;
     private float _horizontalDirection;
     private float _verticalDirection;
+    private float _lastPushTime;
     private bool _jump;
     private bool _crawl;
     private int _coinsAmount;
@@ -126,6 +128,13 @@ public class PlayerMover : MonoBehaviour
 
     private void FixedUpdate()
     {
+        bool canJump = Physics2D.OverlapCircle(_groundChecker.position , _groundCheckerRadius,_whatIsGround);
+        if (_animator.GetBool(_hurtAnimationKey))
+        {
+            if (Time.time - _lastPushTime > 0.2f && canJump)
+                _animator.SetBool(_hurtAnimationKey,false);
+                return;
+        }
         _rigidbody.velocity = new Vector2(_horizontalDirection * _speed, _rigidbody.velocity.y);
         // Lab 1
         //_rigidbody.AddForce(new Vector2(50_direction,0),ForceMode2D.Impulse);
@@ -141,8 +150,7 @@ public class PlayerMover : MonoBehaviour
         {
             _rigidbody.gravityScale = 5;
         }
-
-            bool canJump = Physics2D.OverlapCircle(_groundChecker.position , _groundCheckerRadius,_whatIsGround);
+        
         bool canStand = !Physics2D.OverlapCircle(_headChecker.position , _headCheckerRadius,_whatIsCell);
         _headCollider.enabled = !_crawl && canStand;
         if (_jump && canJump)
@@ -163,8 +171,7 @@ public class PlayerMover : MonoBehaviour
                 CurrentMana = 0;
             }
         }
-        
-        
+
     }
 
     private void OnDrawGizmos()
@@ -223,8 +230,12 @@ public class PlayerMover : MonoBehaviour
             yield return new WaitForSeconds(0.2f);
         }
     }
-    public void TakeDamage(int damage)
+    public void TakeDamage(int damage , float pushPower=0 , float enemyPosX=0)
     {
+        if (_animator.GetBool(_hurtAnimationKey))
+        {
+            return;
+        }
         CurrentArmor -= damage;
         if (CurrentArmor <= 0)
         {
@@ -235,6 +246,14 @@ public class PlayerMover : MonoBehaviour
                 gameObject.SetActive(false);
                 Invoke(nameof(ReloadScene), 1f);
             }
+        }
+
+        if (pushPower != 0 && Time.time - _lastPushTime > 0.5f)
+        {
+            _lastPushTime = Time.time;
+            int direction = transform.position.x > enemyPosX ? 1 : -1;
+            _rigidbody.AddForce(new Vector2(direction*pushPower/2,pushPower));
+            _animator.SetBool(_hurtAnimationKey,true);
         }
     }
 
