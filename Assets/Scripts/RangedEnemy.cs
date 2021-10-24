@@ -13,20 +13,13 @@ public class RangedEnemy : MonoBehaviour
     [SerializeField] private float _projectileSpeed;
     [SerializeField] private bool _faceRight;
     [SerializeField] private int _maxHp;
+    [SerializeField] private int _coinsAmount;
     [SerializeField] private Slider _slider;
     [SerializeField] private GameObject _enemySystem;
+    [SerializeField] private Transform _player;
     private int _currentHp;
     private bool _canShoot;
-
-    private int CurrentHp
-    {
-        get => _currentHp;
-        set
-        {
-            _currentHp = value;
-            _slider.value = value;
-        }
-    }
+    
     
     [Header("Animation")] [SerializeField] private Animator _animator;
     [SerializeField] private string _shootAnimationKey;
@@ -34,17 +27,23 @@ public class RangedEnemy : MonoBehaviour
     private void Start()
     {
         _slider.maxValue = _maxHp;
-        CurrentHp = _maxHp;
+        ChangeHp(_maxHp);
     }
-
+    
     private void OnDrawGizmos()
     {
         Gizmos.color=Color.green;       
         Gizmos.DrawWireCube(transform.position,new Vector3(_attackRange,1,0));
     }
 
+    private void ChangeHp(int hp)
+    {
+        _currentHp = hp;
+        _slider.value = hp;
+    }
     private void FixedUpdate()
     {
+        
         if (_canShoot)
         {
             return;
@@ -85,9 +84,11 @@ public class RangedEnemy : MonoBehaviour
 
     public void TakeDamage(int damage)
     {
-        CurrentHp -= damage;
-        if (CurrentHp <= 0)
+        PlayerMover player = _player.GetComponent<PlayerMover>();
+        ChangeHp(_currentHp-damage);
+        if (_currentHp <= 0)
         {
+            player.CoinsAmount += _coinsAmount;
             Destroy(_enemySystem);
         }
     }

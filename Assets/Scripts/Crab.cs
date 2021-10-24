@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-
+using UnityEngine.UI;
 public class Crab : MonoBehaviour
 {
   [SerializeField] private float _walkRange;
@@ -11,6 +11,11 @@ public class Crab : MonoBehaviour
   [SerializeField] private Rigidbody2D _rigidbody2D;
   [SerializeField] private int _damage;
   [SerializeField] private float _pushPower;
+  [SerializeField] private int _maxHp;
+  [SerializeField] private int _coinsAmount;
+  [SerializeField] private Slider _slider;
+  [SerializeField] private Transform _player;
+  private int _currentHp;
   private Vector2 _startPosition;
   private int _direction=1;
   private float _lastAttackTime;
@@ -31,12 +36,19 @@ public class Crab : MonoBehaviour
 
   private void Start()
   {
+    _slider.maxValue = _maxHp;
+    ChangeHp(_maxHp);
     _startPosition = transform.position;
   }
 
   private void OnDrawGizmos()
   {
     Gizmos.DrawWireCube(_drawPosition, new Vector3(_walkRange*2,1,0));
+  }
+  private void ChangeHp(int hp)
+  {
+    _currentHp = hp;
+    _slider.value = hp;
   }
 
   private void Update()
@@ -71,6 +83,16 @@ public class Crab : MonoBehaviour
     {
       _lastAttackTime = Time.time;
       player.TakeDamage(_damage,_pushPower,transform.position.x);
+    }
+  }
+  public void TakeDamage(int damage)
+  {
+    PlayerMover player = _player.GetComponent<PlayerMover>();
+    ChangeHp(_currentHp-damage);
+    if (_currentHp <= 0)
+    {
+      player.CoinsAmount += _coinsAmount;
+      Destroy(gameObject);
     }
   }
 }

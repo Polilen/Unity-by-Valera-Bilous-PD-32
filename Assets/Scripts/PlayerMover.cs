@@ -38,17 +38,32 @@ public class PlayerMover : MonoBehaviour
     [SerializeField] private string _attackAnimatorKey;
     [SerializeField] private string _castAnimatorKey;
     [SerializeField] private string _hurtAnimationKey;
+    [SerializeField] private string _JumpattackAnimatorKey;
+    [SerializeField] private string _JumpcastAnimatorKey;
     [FormerlySerializedAs("_coinAmount")]
     [Header(("UI"))] 
     [SerializeField] private TMP_Text _coinAmountText; 
     [SerializeField] private Slider _hpBar;
     [SerializeField] private Slider _manaBar;
     [SerializeField] private Slider _armorBar;
+
+    [Header("Attack")] [SerializeField] private int _swordDamage;
+    [SerializeField] private Transform _swordAttackPoint;
+    [SerializeField] private float _swordAttackRadius;
+    [SerializeField] private LayerMask _whatIsEnemy;
+    [SerializeField] private int _skillDamage;
+    [SerializeField] private Transform _skillCastPoint;
+    [SerializeField] private float _skillLength;
+    [SerializeField] private LineRenderer _castLine;
+    
+    [SerializeField]private bool _faceRight;
     private float _horizontalDirection;
     private float _verticalDirection;
     private float _lastPushTime;
     private bool _jump;
     private bool _crawl;
+    private bool _needToAttack;
+    private bool _needToCast;
     private int _coinsAmount;
 
     public int CoinsAmount
@@ -114,16 +129,31 @@ public class PlayerMover : MonoBehaviour
         {
             _jump=true;
         }
-        if (_horizontalDirection > 0 && _spriteRenderer.flipX)
+
+        if (Input.GetKey(KeyCode.Mouse0))
         {
-            _spriteRenderer.flipX = false;
+            _needToAttack = true;
         }
-        else if(_horizontalDirection<0 && !_spriteRenderer.flipX)
+        if (Input.GetKey(KeyCode.U))
         {
-            _spriteRenderer.flipX = true;
+            _needToCast = true;
         }
+        if (_horizontalDirection > 0 && !_faceRight) 
+        {
+            Flip();
+        }
+        else if(_horizontalDirection < 0 && _faceRight) 
+        {
+            Flip();
+        }
+        
 
         _crawl = Input.GetKey(KeyCode.C);
+    }
+    private void Flip()
+    {
+        _faceRight = !_faceRight;
+        transform.Rotate(0, 180, 0);
     }
 
     private void FixedUpdate()
@@ -132,10 +162,14 @@ public class PlayerMover : MonoBehaviour
         if (_animator.GetBool(_hurtAnimationKey))
         {
             if (Time.time - _lastPushTime > 0.2f && canJump)
-                _animator.SetBool(_hurtAnimationKey,false);
-                return;
+            {
+                _animator.SetBool(_hurtAnimationKey, false);
+            }
+
+            _needToAttack = false;
+            _needToCast = false;
+            return;
         }
-        _rigidbody.velocity = new Vector2(_horizontalDirection * _speed, _rigidbody.velocity.y);
         // Lab 1
         //_rigidbody.AddForce(new Vector2(50_direction,0),ForceMode2D.Impulse);
         //_rigidbody.MovePosition(_rigidbody.position+new Vector2(_direction1,0));
@@ -158,11 +192,21 @@ public class PlayerMover : MonoBehaviour
             _rigidbody.AddForce(Vector2.up * _jumpForce);
             _jump = false;
         }
-        
+        if (CurrentMana > 0)
+        {
+            _animator.SetBool(_castAnimatorKey,Input.GetKey(KeyCode.U));
+            _animator.SetBool(_JumpcastAnimatorKey,Input.GetKey(KeyCode.U));
+        }
+
+        if (CurrentMana <= 0)
+        {
+            _animator.SetBool(_castAnimatorKey,false);
+            _animator.SetBool(_JumpcastAnimatorKey,false);
+        }
         _animator.SetBool(_jumpAnimatorKey,!canJump);
         _animator.SetBool(_crouchAnimatorKey,!_headCollider.enabled);
+        _animator.SetBool(_JumpattackAnimatorKey,Input.GetKey(KeyCode.Mouse0));
         _animator.SetBool(_attackAnimatorKey,Input.GetKey(KeyCode.Mouse0));
-        _animator.SetBool(_castAnimatorKey,Input.GetKey(KeyCode.U));
         if (Input.GetKey(KeyCode.U))
         {
             CurrentMana -= 1;
@@ -171,16 +215,88 @@ public class PlayerMover : MonoBehaviour
                 CurrentMana = 0;
             }
         }
+        _rigidbody.velocity = new Vector2(_horizontalDirection * _speed, _rigidbody.velocity.y);
 
     }
-
+    
     private void OnDrawGizmos()
     {
         Gizmos.DrawWireSphere(_groundChecker.position,_groundCheckerRadius);
         Gizmos.color=Color.green;
         Gizmos.DrawWireSphere(_headChecker.position,_headCheckerRadius);
+        Gizmos.color=Color.red;
+        Gizmos.DrawWireCube(_swordAttackPoint.position,new Vector3(_swordAttackRadius,_swordAttackRadius,0));
     }
 
+    private void Attack()
+    {
+        Collider2D[] targets = Physics2D.OverlapBoxAll(_swordAttackPoint.position,
+            new Vector2(_swordAttackRadius, _swordAttackRadius), _whatIsEnemy);
+        foreach (var target in targets)
+        {
+            RangedEnemy rangedEnemy = target.GetComponent<RangedEnemy>();
+            if (rangedEnemy != null)
+            {
+                rangedEnemy.TakeDamage(_swordDamage);
+            }
+
+            Jumper jumper = target.GetComponent<Jumper>();
+            if (jumper != null)
+            {
+                jumper.TakeDamage(_swordDamage);
+            }
+            Crab crab = target.GetComponent<Crab>();
+            if (crab != null)
+            {
+                crab.TakeDamage(_swordDamage);
+            }
+            FlyEnemy flyEnemy = target.GetComponent<FlyEnemy>();
+            if (flyEnemy != null)
+            {
+                flyEnemy.TakeDamage(_swordDamage);
+            }
+        }
+        _needToAttack = false;  
+    }
+
+    private void Cast()
+    {
+        RaycastHit2D[] hits =
+            Physics2D.RaycastAll(_skillCastPoint.position, transform.right, _skillLength, _whatIsEnemy);
+        foreach(var hit in hits)
+        {
+            RangedEnemy target = hit.collider.GetComponent<RangedEnemy>();
+            if (target != null)
+            {
+                target.TakeDamage(_skillDamage);
+            }
+            Jumper jumper = hit.collider.GetComponent<Jumper>();
+            if (jumper != null)
+            {
+                jumper.TakeDamage(_swordDamage);
+            }
+            Crab crab = hit.collider.GetComponent<Crab>();
+            if (crab != null)
+            {
+                crab.TakeDamage(_swordDamage);
+            }
+            FlyEnemy flyEnemy = hit.collider.GetComponent<FlyEnemy>();
+            if (flyEnemy != null)
+            {
+                flyEnemy.TakeDamage(_swordDamage);
+            }
+        }
+        _castLine.SetPosition(0,_skillCastPoint.position);
+        _castLine.SetPosition(1,_skillCastPoint.position+transform.right*_skillLength);
+        _castLine.enabled = true;
+        _needToCast = false;
+        Invoke(nameof(DisableLine),0.1f);
+    }
+
+    private void DisableLine()
+    {
+        _castLine.enabled = false;
+    }
     public void AddHp(int hpPoints)
     {
         int missingHp = _maxHp - CurrentHp;
